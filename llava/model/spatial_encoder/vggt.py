@@ -4,8 +4,9 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-from llava.utils import rank0_print
-from ..vggt.vggt.models import VGGT
+#from llava.utils import rank0_print
+from ..vggt.vggt.models.vggt import VGGT
+#from ..vggt.vggt.models import VGGT
 
 def _prep_images(img: torch.Tensor,
                  clip_mean: Optional[torch.Tensor] = None,
@@ -70,9 +71,9 @@ class VGGTSpatialTower(nn.Module):
 
     def load_model(self, device_map: Optional[dict] = None):
         if self.is_loaded:
-            rank0_print(f"{self.spatial_tower_name} already loaded; skipping.")
+            #rank0_print(f"{self.spatial_tower_name} already loaded; skipping.")
             return
-        rank0_print(f"Loading VGGT weights from: {self.weights_path}")
+        #rank0_print(f"Loading VGGT weights from: {self.weights_path}")
         self.vggt = VGGT.from_pretrained(self.weights_path)
         self.vggt.eval()
         for p in self.vggt.parameters():

@@ -65,6 +65,7 @@ class CrossAttentionFusion(nn.Module):
 def build_multimodal_fusion_block(config, delay_load=False, **kwargs):
     fusion_block_type = getattr(config, "fusion_block", "cross_attention")
     d_clip = config.mm_hidden_size
+    #print(d_clip)
     d_attn = d_clip
     d_spatial_encoder = getattr(config, "spatial_feature_dim", 768)
   
@@ -73,7 +74,8 @@ def build_multimodal_fusion_block(config, delay_load=False, **kwargs):
             d_clip=d_clip,
             d_spatial_encoder=d_spatial_encoder,
             d_attn=d_attn,
-            num_heads=18
+            #num_heads=18
+            num_heads=16
         )
 
     raise ValueError(f"Unknown fusion block type: {fusion_block_type}")

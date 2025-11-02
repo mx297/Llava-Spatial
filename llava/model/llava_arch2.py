@@ -23,7 +23,7 @@ from .multimodal_projector.builder import build_vision_projector
 from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 
 from llava.mm_utils import get_anyres_image_grid_shape
-from llava.utils import rank0_print
+#from llava.utils import rank0_print
 
 
 class LlavaSpatialMetaModel:
@@ -80,8 +80,8 @@ class LlavaSpatialMetaModel:
         if self.get_spatial_tower() is None:
 
             spatial_tower = build_spatial_tower(model_args)
-            for k, v in spatial_tower.config.items():
-                setattr(self.config, k, v)
+            #for k, v in spatial_tower.config.items():
+            #    setattr(self.config, k, v)
 
             if fsdp is not None and len(fsdp) > 0:
                 self.spatial_tower = [spatial_tower]
@@ -111,7 +111,7 @@ class LlavaSpatialMetaModel:
                 return {k.split(keyword + ".")[1]: v for k, v in weights.items() if keyword in k}
 
             incompatible_keys = self.fusion_block.load_state_dict(get_w(mm_projector_weights, "fusion_block"), strict=False)
-            rank0_print(f"Loaded fusion block weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
+            #rank0_print(f"Loaded fusion block weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
 
     def initialize_vision_modules(self, model_args, fsdp=None):
         vision_tower = model_args.vision_tower
@@ -141,6 +141,7 @@ class LlavaSpatialMetaModel:
           
         self.config.use_mm_proj = True
         self.config.mm_projector_type = getattr(model_args, "mm_projector_type", "linear")
+        self.config.mm_hidden_size = vision_tower.hidden_size
         self.config.mm_vision_select_layer = mm_vision_select_layer
         self.config.mm_vision_select_feature = mm_vision_select_feature
         self.config.mm_patch_merge_type = mm_patch_merge_type
@@ -174,7 +175,7 @@ class LlavaSpatialMetaModel:
                 return {k.split(keyword + ".")[1]: v for k, v in weights.items() if keyword in k}
 
             incompatible_keys = self.mm_projector.load_state_dict(get_w(mm_projector_weights, "mm_projector"))
-            rank0_print(f"Loaded mm projector weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
+            #rank0_print(f"Loaded mm projector weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
 
 def unpad_image(tensor, original_size):
     """

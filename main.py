@@ -8,20 +8,12 @@ from llava.model.language_model.llava_llama_spatial import LlavaLlamaSpatialForC
 
 # --- Choose your model + towers (replace with the actual IDs/paths you use) ---
 BASE_LLM = "lmsys/vicuna-7b-v1.5"             # example base LLM
-VISION_TOWER = "openai/clip-vit-large-patch14-336" # example vision tower used by LLaVA
+VISION_TOWER = "google/siglip-so400m-patch14-384" # example vision tower used by LLaVA
 SPATIAL_TOWER = "vggt"      # <-- your spatial tower checkpoint
 FUSION_BLOCK  = "cross_attn_spatial_fusion"        # <-- the fusion block name your code expects
 
 def build_model(device="cuda", use_bf16=True):
     # 1) Load the spatial variant of the model
-    model = LlavaLlamaSpatialForCausalLM.from_pretrained(
-        BASE_LLM,
-        attn_implementation="flash_attention_2",  # or "sdpa"/None, depending on your setup
-        torch_dtype=(torch.bfloat16 if use_bf16 else torch.float16),
-    )
-
-    # 2) Prepare a lightweight object with the attributes initialize_*() expect.
-    #    You can also import your ModelArguments dataclass and instantiate that instead.
     model_args = SimpleNamespace(
         # --- standard vision/projector fields your repo uses ---
         model_name_or_path=BASE_LLM,
@@ -45,6 +37,14 @@ def build_model(device="cuda", use_bf16=True):
         fusion_block=FUSION_BLOCK,
         tune_fusion_block=True,
     )
+    model = LlavaLlamaSpatialForCausalLM.from_pretrained(
+        BASE_LLM,
+        attn_implementation="flash_attention_2",  # or "sdpa"/None, depending on your setup
+        torch_dtype=(torch.bfloat16 if use_bf16 else torch.float16),
+    )
+
+    # 2) Prepare a lightweight object with the attributes initialize_*() expect.
+    #    You can also import your ModelArguments dataclass and instantiate that instead.
 
     # 3) Initialize the vision modules (this sets up the vision tower + projector)
     model.get_model().initialize_vision_modules(

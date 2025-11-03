@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-#from llava.utils import rank0_print
+from llava.utils import rank0_print
 from ..vggt.vggt.models.vggt import VGGT
 #from ..vggt.vggt.models import VGGT
 
@@ -36,7 +36,8 @@ def _prep_images(img: torch.Tensor,
         img = img * 0.5 + 0.5
 
     # (Optional) resize here if needed; kept disabled because 336 divisible by 14 as noted
-    # img = nn.functional.interpolate(img, size=(378, 378), mode='bilinear', align_corners=False)
+    nh,nw = int((H//14)*14) , int((W//14)*14)
+    img = nn.functional.interpolate(img, size=(nh, nw), mode='bilinear', align_corners=False)
 
     return img.unsqueeze(1)  # (B,1,C,H,W) expected by VGGT aggregator
 
@@ -70,10 +71,12 @@ class VGGTSpatialTower(nn.Module):
             self.load_model()
 
     def load_model(self, device_map: Optional[dict] = None):
+        print(self.is_loaded)
         if self.is_loaded:
-            #rank0_print(f"{self.spatial_tower_name} already loaded; skipping.")
+            rank0_print(f"{self.spatial_tower_name} already loaded; skipping.")
             return
-        #rank0_print(f"Loading VGGT weights from: {self.weights_path}")
+        rank0_print(f"Loading VGGT weights from: {self.weights_path}")
+        print("--------------------------------------------------------------")
         self.vggt = VGGT.from_pretrained(self.weights_path)
         self.vggt.eval()
         for p in self.vggt.parameters():

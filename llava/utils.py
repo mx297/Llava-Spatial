@@ -5,6 +5,7 @@ import os
 import sys
 
 import requests
+import torch.distributed as dist
 
 from llava.constants import LOGDIR
 
@@ -13,6 +14,19 @@ moderation_msg = "YOUR INPUT VIOLATES OUR CONTENT MODERATION GUIDELINES. PLEASE 
 
 handler = None
 
+def rank0_print(*args):
+    if dist.is_initialized():
+        if dist.get_rank() == 0:
+            print(f"Rank {dist.get_rank()}: ", *args)
+    else:
+        print(*args)
+
+
+def rank_print(*args):
+    if dist.is_initialized():
+        print(f"Rank {dist.get_rank()}: ", *args)
+    else:
+        print(*args)
 
 def build_logger(logger_name, logger_filename):
     global handler

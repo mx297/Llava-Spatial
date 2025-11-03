@@ -23,19 +23,20 @@ from .multimodal_projector.builder import build_vision_projector
 from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 
 from llava.mm_utils import get_anyres_image_grid_shape
-#from llava.utils import rank0_print
+from llava.utils import rank0_print
 
 
 class LlavaSpatialMetaModel:
 
     def __init__(self, config):
         super(LlavaSpatialMetaModel, self).__init__(config)
-
-        if hasattr(config, "mm_vision_tower"):
+        print(config)
+        if hasattr(config, "vision_tower"):
             delay_load = getattr(config, "delay_load", False)
             self.vision_tower = build_vision_tower(config, delay_load=delay_load)
             
             # create spatial tower and fusion block
+            print(config)
             if hasattr(config, "spatial_tower"):
                 self.spatial_tower = build_spatial_tower(config, delay_load=True)
             if hasattr(config, "fusion_block"):
@@ -92,6 +93,7 @@ class LlavaSpatialMetaModel:
                 spatial_tower = self.spatial_tower[0]
             else:
                 spatial_tower = self.spatial_tower
+            
             spatial_tower.load_model()
 
     def initialize_fusion_block(self, model_args, fsdp=None):
@@ -111,7 +113,7 @@ class LlavaSpatialMetaModel:
                 return {k.split(keyword + ".")[1]: v for k, v in weights.items() if keyword in k}
 
             incompatible_keys = self.fusion_block.load_state_dict(get_w(mm_projector_weights, "fusion_block"), strict=False)
-            #rank0_print(f"Loaded fusion block weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
+            rank0_print(f"Loaded fusion block weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
 
     def initialize_vision_modules(self, model_args, fsdp=None):
         vision_tower = model_args.vision_tower
@@ -163,6 +165,7 @@ class LlavaSpatialMetaModel:
         if ip is not None:
             self.config.clip_image_mean = getattr(ip, "image_mean", None)
             self.config.clip_image_std  = getattr(ip, "image_std",  None)
+            print(self.config.clip_image_std)
         else:
             self.config.clip_image_mean = None
             self.config.clip_image_std  = None
@@ -175,7 +178,7 @@ class LlavaSpatialMetaModel:
                 return {k.split(keyword + ".")[1]: v for k, v in weights.items() if keyword in k}
 
             incompatible_keys = self.mm_projector.load_state_dict(get_w(mm_projector_weights, "mm_projector"))
-            #rank0_print(f"Loaded mm projector weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
+            rank0_print(f"Loaded mm projector weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
 
 def unpad_image(tensor, original_size):
     """

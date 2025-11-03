@@ -34,17 +34,11 @@ from llava.train.llava_trainer import LLaVATrainer
 from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import tokenizer_image_token
-
+from llava.utils import rank0_print
 from PIL import Image
 
 
 local_rank = None
-
-
-def rank0_print(*args):
-    if local_rank == 0:
-        print(*args)
-
 
 from packaging import version
 IS_TOKENIZER_GREATER_THAN_0_14 = version.parse(tokenizers.__version__) >= version.parse('0.14')

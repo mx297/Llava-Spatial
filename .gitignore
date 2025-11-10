@@ -11,6 +11,7 @@ dist
 *.jsonl
 *.png
 *.webp
+*.jpeg
 
 # Data
 !**/alpaca-data-conversation.json

@@ -10,7 +10,7 @@ import tempfile
 import ssl 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-BASE_URL = 'http://kaldir.vc.in.tum.de/scannet/'
+BASE_URL = 'https://kaldir.vc.in.tum.de/scannet/'
 TOS_URL = BASE_URL + 'ScanNet_TOS.pdf'
 FILETYPES = ['.aggregation.json', '.sens', '.txt', '_vh_clean.ply', '_vh_clean_2.0.010000.segs.json', '_vh_clean_2.ply', '_vh_clean.segs.json', '_vh_clean.aggregation.json', '_vh_clean_2.labels.ply', '_2d-instance.zip', '_2d-instance-filt.zip', '_2d-label.zip', '_2d-label-filt.zip']
 FILETYPES_TEST = ['.sens', '.txt', '_vh_clean.ply', '_vh_clean_2.ply']

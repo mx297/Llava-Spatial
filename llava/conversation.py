@@ -13,6 +13,7 @@ class SeparatorStyle(Enum):
     MPT = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
+    LLAMA_3 = auto() #edit
 
 
 @dataclasses.dataclass
@@ -91,6 +92,19 @@ class Conversation:
                 else:
                     ret += ""
             ret = ret.lstrip(self.sep)
+            
+        #edit
+        elif self.sep_style == SeparatorStyle.LLAMA_3:
+            # Llama 3 ChatML-like formatting
+            ret = "<|begin_of_text|>"
+            for role, message in self.messages:
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    ret += f"<|start_header_id|>{role}<|end_header_id|>\n{message}{self.sep}"
+                else:
+                    ret += f"<|start_header_id|>{role}<|end_header_id|>\n"
+
         elif self.sep_style == SeparatorStyle.PLAIN:
             seps = [self.sep, self.sep2]
             ret = self.system
@@ -276,6 +290,30 @@ conv_llava_llama_2 = Conversation(
     sep="<s>",
     sep2="</s>",
 )
+#update
+# === LLaMA 3 text-only ===
+conv_llama_3 = Conversation(
+    system="You are Meta Llama 3, a helpful, respectful and honest assistant. "
+           "Always provide safe, unbiased, and accurate information.",
+    roles=("user", "assistant"),
+    version="llama_v3",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_3,
+    sep="<|eot_id|>",
+)
+
+# === LLaVA-LLaMA 3 (multimodal) ===
+conv_llava_llama_3 = Conversation(
+    system="You are LLaVA powered by Llama 3, a multimodal assistant that can understand and reason "
+           "about both text and visual inputs.",
+    roles=("user", "assistant"),
+    version="llama_v3",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_3,
+    sep="<|eot_id|>",
+)
 
 conv_mpt = Conversation(
     system="""<|im_start|>system
@@ -376,6 +414,7 @@ conv_templates = {
     "v1": conv_vicuna_v1,
     "vicuna_v1": conv_vicuna_v1,
     "llama_2": conv_llama_2,
+    "llama_3": conv_llama_3, #edit
     "mistral_instruct": conv_mistral_instruct,
     "chatml_direct": conv_chatml_direct,
     "mistral_direct": conv_chatml_direct,
@@ -387,10 +426,13 @@ conv_templates = {
     "llava_v1": conv_llava_v1,
     "v1_mmtag": conv_llava_v1_mmtag,
     "llava_llama_2": conv_llava_llama_2,
+    "llava_llama_3": conv_llava_llama_3, #edit
 
     "mpt": conv_mpt,
 }
 
+
+    
 
 if __name__ == "__main__":
     print(default_conversation.get_prompt())

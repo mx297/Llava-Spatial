@@ -164,6 +164,8 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request:
     if len(state.messages) == state.offset + 2:
         # First round of conversation
         if "llava" in model_name.lower():
+            if 'llama-3' in model_name.lower(): #edit
+                template_name = "llava_llama_3"
             if 'llama-2' in model_name.lower():
                 template_name = "llava_llama_2"
             elif "mistral" in model_name.lower() or "mixtral" in model_name.lower():
@@ -193,6 +195,8 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request:
                     template_name = "llava_v0"
         elif "mpt" in model_name:
             template_name = "mpt_text"
+        elif "llama-3" in model_name.lower():
+            template_name = "llama_3"
         elif "llama-2" in model_name:
             template_name = "llama_2"
         else:

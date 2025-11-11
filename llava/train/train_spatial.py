@@ -35,8 +35,12 @@ from llava import conversation as conversation_lib
 from llava.model import *  # original non-spatial models (e.g., LlavaLlamaForCausalLM, LlavaMptForCausalLM)
 from llava.mm_utils import tokenizer_image_token
 
-# NEW: import the Spatial model variant and config
-from ...llava.model.language_model.llava_llama_spatial import (
+# # NEW: import the Spatial model variant and config
+# from ...llava.model.language_model.llava_llama_spatial import (
+#     LlavaLlamaSpatialForCausalLM,
+#     LlavaSpatialConfig,
+# )
+from llava.model.language_model.llava_llama_spatial import (
     LlavaLlamaSpatialForCausalLM,
     LlavaSpatialConfig,
 )
@@ -433,6 +437,105 @@ def preprocess_llama_2(
         input_ids=input_ids,
         labels=targets,
     )
+#edit
+#This is the core data preprocessing step for LLaMA-3 or LLaVA-LLaMA-3 models.
+#using the new ChatML format (<|start_header_id|>user … <|eot_id|>).
+def preprocess_llama_3(
+    sources,
+    tokenizer: transformers.PreTrainedTokenizer,
+    has_image: bool = False
+) -> Dict:
+    #This function takes:
+
+    # sources: your conversation data (usually loaded from JSON),
+
+    # tokenizer: the Hugging Face tokenizer for LLaMA-3,
+
+    # has_image: True if training a multimodal model (LLaVA).
+    """
+    Preprocess data for LLaMA-3 and LLaVA-LLaMA-3 models.
+    Uses ChatML-like conversation formatting (<|start_header_id|>user ...).
+    """
+    # Get the base conversation template
+
+    conv = conversation_lib.default_conversation.copy()
+    #default_conversation was set earlier (e.g. to conv_llava_llama_3).
+    # conv.roles: names of the two participants (("user", "assistant")),
+    # conv.sep: the separator token (<|eot_id|> for LLaMA-3),
+    # conv.sep_style: SeparatorStyle.LLAMA_3.
+
+    roles = {"human": conv.roles[0], "gpt": conv.roles[1]}  
+    # simple roles dictionary mapping "human" → "user", "gpt" → "assistant".
+
+    # --- 1. Build formatted conversations ---
+    conversations = []
+    for i, source in enumerate(sources):
+        if roles[source[0]["from"]] != conv.roles[0]: #This ensures the first message is from the user (conv.roles[0] = "user").
+            source = source[1:]  # If not, we drop the first entry.
+
+        conv.messages = []
+        for j, sentence in enumerate(source):
+            role = roles[sentence["from"]]  # # user or assistant
+            assert role == conv.roles[j % 2], f"{i}"
+            conv.append_message(role, sentence["value"]) #Appends messages one by one
+        conversations.append(conv.get_prompt()) #full formatted text using your LLaMA-3 ChatML template
+
+    # --- 2. Tokenize conversations ---
+    #For multimodal (LLaVA) models:
+    #Calls tokenizer_image_token() — a custom helper that replaces image placeholders like <image> with a special image token ID and returns a tensor.
+    if has_image:
+        input_ids = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations],
+            dim=0,
+        )
+    # For text-only LLaMA-3:
+    #Uses the tokenizer to convert text → input_ids with padding and truncation.
+    else:
+        input_ids = tokenizer(
+            conversations,
+            return_tensors="pt",
+            padding="longest",
+            max_length=tokenizer.model_max_length,
+            truncation=True,
+        ).input_ids
+
+    targets = input_ids.clone() #Makes a copy of the token IDs called targets, which will be modified for label masking.
+    assert conv.sep_style == conversation_lib.SeparatorStyle.LLAMA_3 #Checks that the conversation template is indeed LLaMA-3 style.
+
+    # we want the model to predict only assistant tokens, not user/system text.
+    # --- 3. Mask user (and system) turns ---
+    # LLaMA-3 separator: <|eot_id|>
+    sep = conv.sep  # "<|eot_id|>"
+    for conversation, target in zip(conversations, targets):
+        total_len = int(target.ne(tokenizer.pad_token_id).sum())    #counts all non-padding tokens
+
+        # Split into message blocks
+        rounds = conversation.split(sep) #Split the whole conversation into individual message blocks by <|eot_id|>.
+        cur_len = 1 #keeps track of how many tokens we’ve processed.
+        target[:cur_len] = IGNORE_INDEX #  first token (the BOS / <|begin_of_text|>) is masked ou
+        for r in rounds: # iterate over each message block
+            if not r.strip():
+                continue
+            # Detect assistant block
+            if "<|start_header_id|>assistant" in r: # (we want the model to learn to predict these).
+                # keep assistant visible (predictable)
+                continue
+            else:
+                # mask everything else (user/system)
+                # replace the corresponding label tokens in targets with IGNORE_INDEX so the loss is not computed there.
+                token_count = len(tokenizer(r).input_ids)
+                target[cur_len : cur_len + token_count] = IGNORE_INDEX
+                cur_len += token_count
+
+        # mask padding
+        target[cur_len:] = IGNORE_INDEX
+
+        # sanity check
+        if cur_len < tokenizer.model_max_length and cur_len != total_len:
+            target[:] = IGNORE_INDEX
+            print(f"WARNING: tokenization mismatch: {cur_len} vs. {total_len} (ignored)")
+
+    return dict(input_ids=input_ids, labels=targets)    #Return {input_ids, labels} ready for training
 
 
 def preprocess_v1(
@@ -647,6 +750,8 @@ def preprocess(
         return preprocess_plain(sources, tokenizer)
     if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.LLAMA_2:
         return preprocess_llama_2(sources, tokenizer, has_image=has_image)
+    if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.LLAMA_3: #edit
+        return preprocess_llama_3(sources, tokenizer, has_image=has_image) #edit
     if conversation_lib.default_conversation.version.startswith("v1"):
         return preprocess_v1(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "mpt":
@@ -848,6 +953,17 @@ def train(attn_implementation=None):
                 cache_dir=training_args.cache_dir,
                 **bnb_model_from_pretrained_args
             )
+        #edit
+        elif 'llama-3' in model_args.model_name_or_path.lower():
+            # Load  LLaVA-LLaMA-3 spatial model
+            model = LlavaLlamaSpatialForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                cache_dir=training_args.cache_dir,
+                attn_implementation=attn_implementation,
+                torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                trust_remote_code=True,
+                **bnb_model_from_pretrained_args
+            )
         else:
             # Use spatial variant when spatial_tower or fusion_block is specified
             if model_args.spatial_tower is not None or model_args.fusion_block is not None:
@@ -875,6 +991,9 @@ def train(attn_implementation=None):
             **bnb_model_from_pretrained_args
         )
     model.config.use_cache = False
+      # Log detected LLaMA-3 model #edit
+    if "llama-3" in model_args.model_name_or_path.lower():
+        rank0_print(f"✅ Detected LLaMA-3 family model: {model_args.model_name_or_path}")
 
     if model_args.freeze_backbone:
         model.model.requires_grad_(False)
@@ -918,6 +1037,16 @@ def train(attn_implementation=None):
             model_max_length=training_args.model_max_length,
             padding_side="right"
         )
+    #edit
+    if "llama-3" in model_args.model_name_or_path.lower():
+        tokenizer = transformers.AutoTokenizer.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            model_max_length=training_args.model_max_length,
+            padding_side="right",
+            use_fast=True,  # Llama-3 uses the fast tokenizer
+            trust_remote_code=True,
+        )
     else:
         tokenizer = transformers.AutoTokenizer.from_pretrained(
             model_args.model_name_or_path,
@@ -938,6 +1067,10 @@ def train(attn_implementation=None):
         tokenizer.pad_token = tokenizer.unk_token
     else:
         tokenizer.pad_token = tokenizer.unk_token
+         # 🔹 Automatically detect and assign conversation mode
+         #edit (check)
+        if "llama-3" in model_args.model_name_or_path.lower():
+            model_args.version = "llava_llama_3" if model_args.vision_tower else "llama_3"
         if model_args.version in conversation_lib.conv_templates:
             conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
         else:

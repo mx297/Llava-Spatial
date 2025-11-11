@@ -423,8 +423,33 @@ class LlavaSpatialMetaForCausalLM(ABC):
                         dtype=cur_labels_full.dtype
                     ))
 
+
             cur_new_input_embeds = [x.to(self.device) for x in cur_new_input_embeds]
-            cur_new_input_embeds = torch.cat(cur_new_input_embeds)
+            for idx, emb in enumerate(cur_new_input_embeds):
+                print(f"[DEBUG] embed {idx}: {emb.shape}")
+            # cur_new_input_embeds = torch.cat(cur_new_input_embeds)
+            # fixed = []
+            # for t in cur_new_input_embeds:
+            #     if t.dim() == 1:                         # <-- 1D -> add token dimension
+            #         t = t.unsqueeze(0)
+            #     fixed.append(t)
+            fixed = []
+            for t in cur_new_input_embeds:
+                if t.dim() == 1:
+                    # infer hidden size from the model config
+                    hidden = self.config.hidden_size
+                    t = t.view(-1, hidden)
+                    print(f"[FIX] reshaped 1D tensor to {t.shape}")
+                fixed.append(t)
+            cur_new_input_embeds = torch.cat(fixed, dim=0)
+            # --- 🔧 Fix: force embed/label to same length ---
+            T = min(cur_new_input_embeds.shape[0], cur_new_labels.shape[0])
+            cur_new_input_embeds = cur_new_input_embeds[:T]
+            cur_new_labels = cur_new_labels[:T]
+
+            for idx, t in enumerate(cur_new_input_embeds):
+                print(f"[DEBUG] embed {idx} shape:", t.shape)
+
             cur_new_labels = torch.cat(cur_new_labels)
 
             new_input_embeds.append(cur_new_input_embeds)
@@ -446,6 +471,11 @@ class LlavaSpatialMetaForCausalLM(ABC):
         position_ids = torch.zeros((batch_size, max_len), dtype=position_ids.dtype, device=position_ids.device)
 
         for i, (cur_new_embed, cur_new_labels) in enumerate(zip(new_input_embeds, new_labels)):
+                # extra safety
+            if cur_new_embed.shape[0] != cur_new_labels.shape[0]:
+                T = min(cur_new_embed.shape[0], cur_new_labels.shape[0])
+                cur_new_embed = cur_new_embed[:T]
+                cur_new_labels = cur_new_labels[:T]
             cur_len = cur_new_embed.shape[0]
             if getattr(self.config, 'tokenizer_padding_side', 'right') == "left":
                 new_input_embeds_padded.append(torch.cat((

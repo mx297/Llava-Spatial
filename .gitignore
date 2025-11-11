@@ -38,3 +38,11 @@ ckpts*
 
 # Demo
 serve_images/
+.venv/
+
+# Ignore training logs and outputs
+test_llama3/logs/
+*.out
+
+# Ignore Slurm scripts and job outputs
+*.log
